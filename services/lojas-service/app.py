@@ -49,6 +49,11 @@ def dashboard(loja_id):
     return jsonify({"vendas": vendas, "estoque": estoque})
 
 
+@app.route('/historico')
+def historico():
+    return jsonify({"total_lojas": len(lojas), "total_produtos_associados": len(produtos_lojas)})
+
+
 @app.route('/status')
 def status():
     return jsonify({"status": "ok"})
