@@ -46,6 +46,8 @@ services:
       DB_NAME: lojas_db
       DB_USER: lojas_user
       DB_PASSWORD: ${LOJAS_DB_PASSWORD:?defina no .env}
+      ITEMS_URL: http://items-service:8383
+      PEDIDOS_URL: http://pedidos-service:8080
     ports:
       - "127.0.0.1:${LOJAS_PORT:-8282}:8282"
 
