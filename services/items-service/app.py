@@ -5,6 +5,14 @@ app = Flask(__name__)
 # Simulação de banco de dados em memória
 itens = []
 
+def parse_preco(valor):
+    try:
+        preco = float(valor)
+    except (TypeError, ValueError):
+        return None
+    return preco if preco >= 0 else None
+
+
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
@@ -16,11 +24,15 @@ def home():
 @app.route('/itens', methods=['GET', 'POST'])
 def itens_route():
     if request.method == 'POST':
+        nome = (request.form.get('nome') or '').strip()
+        preco = parse_preco(request.form.get('preco'))
+        if not nome or preco is None:
+            return jsonify({"message": "Informe nome e um preço válido (>= 0)"}), 400
         novo_item = {
-            "id": len(itens) + 1,
-            "nome": request.form.get('nome'),
+            "id": max((i["id"] for i in itens), default=0) + 1,
+            "nome": nome,
             "descricao": request.form.get('descricao'),
-            "preco": float(request.form.get('preco'))
+            "preco": preco
         }
         itens.append(novo_item)
         return jsonify({"message": "Item cadastrado com sucesso", "item": novo_item})
@@ -38,7 +50,11 @@ def item_route(item_id):
     if request.method == 'PUT':
         item["nome"] = request.form.get('nome', item["nome"])
         item["descricao"] = request.form.get('descricao', item["descricao"])
-        item["preco"] = float(request.form.get('preco', item["preco"]))
+        if 'preco' in request.form:
+            preco = parse_preco(request.form.get('preco'))
+            if preco is None:
+                return jsonify({"message": "Preço inválido"}), 400
+            item["preco"] = preco
         return jsonify({"message": "Item atualizado com sucesso", "item": item})
 
     if request.method == 'DELETE':

@@ -44,7 +44,7 @@ def home():
             historico_transacoes.append(transacao)
             return jsonify({"data": {"pix": response}})
         
-        return jsonify({"data": {"cartao_credito": cartao_credito, "boleto": boleto, "pix": pix}})
+        return jsonify({"message": "Informe cartao, boleto ou pix"}), 400
     return render_template('index.html')
 
 @app.route('/status')
@@ -54,8 +54,11 @@ def status():
 @app.route('/formas_pagamento', methods=['GET', 'POST'])
 def formas_pagamento_route():
     if request.method == 'POST':
-        nova_forma = request.form.get('forma_pagamento')
-        formas_pagamento.append(nova_forma)
+        nova_forma = (request.form.get('forma_pagamento') or '').strip()
+        if not nova_forma:
+            return jsonify({"message": "Informe a forma de pagamento"}), 400
+        if nova_forma not in formas_pagamento:
+            formas_pagamento.append(nova_forma)
         return jsonify({"message": "Forma de pagamento cadastrada com sucesso", "formas_pagamento": formas_pagamento})
     return jsonify({"formas_pagamento": formas_pagamento})
 
