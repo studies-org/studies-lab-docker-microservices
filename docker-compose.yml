@@ -76,5 +76,16 @@ services:
     ports:
       - "127.0.0.1:${PEDIDOS_PORT:-8080}:8080"
 
+  painel:
+    build: ./painel
+    restart: unless-stopped
+    ports:
+      - "${PAINEL_PORT:-8000}:8080"
+    depends_on:
+      items-service: { condition: service_healthy }
+      lojas-service: { condition: service_healthy }
+      pagamentos-service: { condition: service_healthy }
+      pedidos-service: { condition: service_healthy }
+
 volumes:
   mysql-data:
