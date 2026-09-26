@@ -30,8 +30,14 @@ def lojas_route():
 
 @app.route('/produtos_lojas', methods=['POST'])
 def produtos_lojas_route():
-    loja_id = request.form.get('loja_id')
-    produto_id = request.form.get('produto_id')
+    # O formulário manda texto; sem converter, o filtro do dashboard (int) nunca batia
+    try:
+        loja_id = int(request.form.get('loja_id'))
+        produto_id = int(request.form.get('produto_id'))
+    except (TypeError, ValueError):
+        return jsonify({"message": "loja_id e produto_id devem ser números"}), 400
+    if not any(loja["id"] == loja_id for loja in lojas):
+        return jsonify({"message": f"Loja {loja_id} não encontrada"}), 404
     produto_loja = {"loja_id": loja_id, "produto_id": produto_id}
     produtos_lojas.append(produto_loja)
     return jsonify({"message": f"Produto {produto_id} associado à loja {loja_id} com sucesso", "produtos_lojas": produtos_lojas})
@@ -41,6 +47,11 @@ def dashboard(loja_id):
     vendas = [venda for venda in historico_vendas if venda.get('loja_id') == loja_id]
     estoque = [produto for produto in produtos_lojas if produto.get('loja_id') == loja_id]
     return jsonify({"vendas": vendas, "estoque": estoque})
+
+
+@app.route('/historico')
+def historico():
+    return jsonify({"total_lojas": len(lojas), "total_produtos_associados": len(produtos_lojas)})
 
 
 @app.route('/status')
