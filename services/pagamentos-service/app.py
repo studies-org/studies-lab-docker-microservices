@@ -1,7 +1,7 @@
 import json
 import uuid
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, request
 
 import db
 import servicos
@@ -58,17 +58,20 @@ def listar_transacoes():
     return rows
 
 
-@app.route('/', methods=['GET', 'POST'])
+ROTAS = [
+    "GET /formas_pagamento",
+    "POST /formas_pagamento",
+    "POST /pagamentos",
+    "GET /pagamentos/<id>",
+    "POST /pagamentos/<id>/confirmar",
+    "GET /historico",
+    "GET /status",
+]
+
+
+@app.route('/')
 def home():
-    if request.method == 'POST':
-        data = payload()
-        for campo, tipo in (("cartao", "cartao_credito"), ("boleto", "boleto"), ("pix", "pix")):
-            if data.get(campo):
-                detalhes = simular(tipo, data[campo])
-                registrar(tipo, detalhes)
-                return jsonify({"data": {tipo: detalhes}})
-        return jsonify({"message": "Informe cartao, boleto ou pix"}), 400
-    return render_template('index.html')
+    return jsonify({"servico": "pagamentos-service", "rotas": ROTAS})
 
 
 @app.route('/status')

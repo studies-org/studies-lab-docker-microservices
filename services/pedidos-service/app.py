@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, request
 
 import db
 import servicos
@@ -62,9 +62,19 @@ def ler_pedido(data):
     return dict(cliente_id=cliente_id, loja_id=loja_id, forma_pagamento=forma_pagamento, itens=itens), None
 
 
-@app.route('/', methods=['GET'])
+ROTAS = [
+    "GET /pedidos",
+    "POST /pedidos",
+    "GET /pedidos/<id>",
+    "PUT /pedidos/<id>/status",
+    "GET /clientes/<cliente_id>/pedidos",
+    "GET /status",
+]
+
+
+@app.route('/')
 def home():
-    return render_template('index.html')
+    return jsonify({"servico": "pedidos-service", "rotas": ROTAS})
 
 
 @app.route('/status')

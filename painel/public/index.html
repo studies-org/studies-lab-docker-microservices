@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Balcão · painel dos microserviços</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23b4532a'/%3E%3Cpath d='M8 13h16v3H8zm2 5h12v6H10z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#visao">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M8 13h16v3H8zm2 5h12v6H10z" fill="#fff"/></svg>
+      <span><b>Balcão</b><small>lab de microserviços</small></span>
+    </a>
+    <nav>
+      <a href="#visao" data-page="visao">Visão geral</a>
+      <p class="nav-label">Serviços</p>
+      <a href="#itens" data-page="itens"><i class="dot" data-svc="items"></i>Itens</a>
+      <a href="#lojas" data-page="lojas"><i class="dot" data-svc="lojas"></i>Lojas</a>
+      <a href="#pedidos" data-page="pedidos"><i class="dot" data-svc="pedidos"></i>Pedidos</a>
+      <a href="#pagamentos" data-page="pagamentos"><i class="dot" data-svc="pagamentos"></i>Pagamentos</a>
+    </nav>
+    <footer>Docker Compose · Flask · MySQL</footer>
+  </aside>
+
+  <main>
+    <!-- Visão geral -->
+    <section class="page" id="page-visao">
+      <header class="page-head">
+        <div>
+          <h1>Visão geral</h1>
+          <p>Quatro serviços Flask, cada um com o próprio banco no MySQL, conversando por HTTP na rede do Compose.</p>
+        </div>
+      </header>
+      <div class="svc-grid" id="svc-grid"></div>
+      <div class="flow">
+        <div class="flow-step"><span>1</span><b>Itens</b><p>Catálogo com preço oficial</p></div>
+        <div class="flow-step"><span>2</span><b>Lojas</b><p>Recebem itens com estoque</p></div>
+        <div class="flow-step"><span>3</span><b>Pedidos</b><p>Total calculado com o preço do catálogo</p></div>
+        <div class="flow-step"><span>4</span><b>Pagamentos</b><p>Pagam o pedido e mudam o status</p></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Últimos pedidos</h2><a href="#pedidos" class="link">ver todos</a></div>
+        <div id="ultimos-pedidos"></div>
+      </div>
+    </section>
+
+    <!-- Itens -->
+    <section class="page" id="page-itens" hidden>
+      <header class="page-head">
+        <div><h1>Itens</h1><p>Catálogo de produtos. O preço daqui é o que vale no pedido.</p></div>
+        <code class="svc-tag">items-service · :8383</code>
+      </header>
+      <form class="card form-row" id="form-item">
+        <label>Nome<input name="nome" required maxlength="120" placeholder="Teclado mecânico"></label>
+        <label class="grow">Descrição<input name="descricao" maxlength="255" placeholder="ABNT2, switch marrom"></label>
+        <label class="w-sm">Preço (R$)<input name="preco" type="number" min="0" step="0.01" required placeholder="0,00"></label>
+        <button class="btn">Cadastrar item</button>
+      </form>
+      <div class="card"><div id="tabela-itens"></div></div>
+    </section>
+
+    <!-- Lojas -->
+    <section class="page" id="page-lojas" hidden>
+      <header class="page-head">
+        <div><h1>Lojas</h1><p>Lojas, itens em estoque e o painel de vendas de cada uma.</p></div>
+        <code class="svc-tag">lojas-service · :8282</code>
+      </header>
+      <form class="card form-row" id="form-loja">
+        <label>Nome<input name="nome" required maxlength="120" placeholder="Loja Centro"></label>
+        <label class="grow">Endereço<input name="endereco" maxlength="255" placeholder="Rua das Flores, 120"></label>
+        <label>Contato<input name="contato" maxlength="120" placeholder="(11) 4000-0000"></label>
+        <button class="btn">Cadastrar loja</button>
+      </form>
+      <div class="split">
+        <div class="card list-card">
+          <div class="card-head"><h2>Lojas</h2></div>
+          <div id="lista-lojas"></div>
+        </div>
+        <div class="card" id="dashboard-loja">
+          <p class="empty">Escolha uma loja para ver estoque e vendas.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pedidos -->
+    <section class="page" id="page-pedidos" hidden>
+      <header class="page-head">
+        <div><h1>Pedidos</h1><p>O total é calculado pelo serviço com o preço do items-service.</p></div>
+        <code class="svc-tag">pedidos-service · :8080</code>
+      </header>
+      <form class="card" id="form-pedido">
+        <div class="form-row">
+          <label class="w-sm">Cliente<input name="cliente_id" type="number" min="1" required value="1"></label>
+          <label>Loja<select name="loja_id" id="pedido-loja"></select></label>
+          <label>Pagamento<select name="forma_pagamento" id="pedido-forma"></select></label>
+        </div>
+        <div id="linhas-pedido"></div>
+        <div class="form-foot">
+          <button type="button" class="btn ghost" id="add-linha">+ item</button>
+          <span class="total">Estimativa: <b id="estimativa">R$ 0,00</b></span>
+          <button class="btn">Criar pedido</button>
+        </div>
+      </form>
+      <div class="card"><div id="tabela-pedidos"></div></div>
+    </section>
+
+    <!-- Pagamentos -->
+    <section class="page" id="page-pagamentos" hidden>
+      <header class="page-head">
+        <div><h1>Pagamentos</h1><p>Gateway simulado: cartão e PIX aprovam na hora, boleto fica pendente até a confirmação.</p></div>
+        <code class="svc-tag">pagamentos-service · :8181</code>
+      </header>
+      <form class="card form-row" id="form-pagamento">
+        <label class="grow">Pedido<select name="pedido_id" id="pag-pedido" required></select></label>
+        <label>Forma<select name="forma_pagamento" id="pag-forma"></select></label>
+        <label id="pag-cartao-wrap">Cartão<input name="cartao" inputmode="numeric" maxlength="19" placeholder="4111 1111 1111 1111"></label>
+        <button class="btn">Pagar</button>
+      </form>
+      <div class="card"><div class="card-head"><h2>Histórico de transações</h2></div><div id="tabela-transacoes"></div></div>
+    </section>
+  </main>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
