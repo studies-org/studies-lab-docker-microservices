@@ -52,10 +52,17 @@ def status():
 # Rotas para funcionalidades de pedidos
 @app.route('/pedidos', methods=['POST'])
 def criar_pedido():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    try:
+        itens = [ItemPedido(int(item['produto_id']), int(item['quantidade'])) for item in data['itens']]
+        cliente_id = int(data['cliente_id'])
+        forma_pagamento = data['forma_pagamento']
+    except (KeyError, TypeError, ValueError):
+        return jsonify({'error': 'Envie cliente_id, forma_pagamento e itens [{produto_id, quantidade}]'}), 400
+    if not itens or any(item.quantidade <= 0 for item in itens):
+        return jsonify({'error': 'O pedido precisa de ao menos um item com quantidade positiva'}), 400
     pedido_id = len(pedidos) + 1
-    itens = [ItemPedido(item['produto_id'], item['quantidade']) for item in data['itens']]
-    pedido = Pedido(pedido_id, data['cliente_id'], itens, data['forma_pagamento'])
+    pedido = Pedido(pedido_id, cliente_id, itens, forma_pagamento)
     pedidos.append(pedido)
     print(f"Pedido criado: {pedido.to_dict()}")  # Log para depuração
     return jsonify({'id': pedido_id}), 201
@@ -69,7 +76,7 @@ def status_pedido(pedido_id):
 
 @app.route('/pedidos/<int:pedido_id>/status', methods=['PUT'])
 def atualizar_status_pedido(pedido_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     novo_status = data.get('status')
 
     if novo_status not in Pedido.STATUS:
