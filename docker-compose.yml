@@ -1,0 +1,26 @@
+name: studies-lab-docker-microservices
+
+services:
+  items-service:
+    build: ./services/items-service
+    ports:
+      - "127.0.0.1:${ITEMS_PORT:-8383}:8383"
+    restart: unless-stopped
+
+  lojas-service:
+    build: ./services/lojas-service
+    ports:
+      - "127.0.0.1:${LOJAS_PORT:-8282}:8282"
+    restart: unless-stopped
+
+  pagamentos-service:
+    build: ./services/pagamentos-service
+    ports:
+      - "127.0.0.1:${PAGAMENTOS_PORT:-8181}:8181"
+    restart: unless-stopped
+
+  pedidos-service:
+    build: ./services/pedidos-service
+    ports:
+      - "127.0.0.1:${PEDIDOS_PORT:-8080}:8080"
+    restart: unless-stopped
