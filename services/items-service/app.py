@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request
 
 import db
 
@@ -37,9 +37,19 @@ def favicon():
     return '', 204
 
 
-@app.route('/', methods=['GET'])
+ROTAS = [
+    "GET /itens",
+    "POST /itens",
+    "GET /itens/<id>",
+    "PUT /itens/<id>",
+    "DELETE /itens/<id>",
+    "GET /status",
+]
+
+
+@app.route('/')
 def home():
-    return render_template('index.html')
+    return jsonify({"servico": "items-service", "rotas": ROTAS})
 
 
 @app.route('/itens', methods=['GET', 'POST'])

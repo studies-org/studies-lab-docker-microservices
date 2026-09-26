@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request
 
 import db
 import servicos
@@ -35,9 +35,22 @@ def buscar(loja_id):
     return db.query_one("SELECT * FROM lojas WHERE id = %s", (loja_id,))
 
 
+ROTAS = [
+    "GET /lojas",
+    "POST /lojas",
+    "GET /lojas/<id>",
+    "PUT /lojas/<id>",
+    "DELETE /lojas/<id>",
+    "POST /produtos_lojas",
+    "GET /dashboard/<loja_id>",
+    "GET /historico",
+    "GET /status",
+]
+
+
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return jsonify({"servico": "lojas-service", "rotas": ROTAS})
 
 
 @app.route('/favicon.ico')
