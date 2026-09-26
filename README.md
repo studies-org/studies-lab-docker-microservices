@@ -161,4 +161,4 @@ O mesmo teste roda no GitHub Actions a cada push, com senhas geradas na hora.
 
 ## Autor
 
-**William Coelho** · RM 556336 · [@willtechdev](https://github.com/willtechdev)
+**William Coelho** · [@willtechdev](https://github.com/willtechdev)
