@@ -1,26 +1,75 @@
 name: studies-lab-docker-microservices
 
+x-service: &service
+  restart: unless-stopped
+  depends_on:
+    mysql:
+      condition: service_healthy
+
 services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?defina no .env}
+      ITEMS_DB_PASSWORD: ${ITEMS_DB_PASSWORD:?defina no .env}
+      LOJAS_DB_PASSWORD: ${LOJAS_DB_PASSWORD:?defina no .env}
+      PAGAMENTOS_DB_PASSWORD: ${PAGAMENTOS_DB_PASSWORD:?defina no .env}
+      PEDIDOS_DB_PASSWORD: ${PEDIDOS_DB_PASSWORD:?defina no .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Durante o init o MySQL roda sem rede; o ping por TCP só passa quando ele está pronto de verdade
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot --password=\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
   items-service:
+    <<: *service
     build: ./services/items-service
+    environment:
+      DB_HOST: mysql
+      DB_NAME: items_db
+      DB_USER: items_user
+      DB_PASSWORD: ${ITEMS_DB_PASSWORD:?defina no .env}
     ports:
       - "127.0.0.1:${ITEMS_PORT:-8383}:8383"
-    restart: unless-stopped
 
   lojas-service:
+    <<: *service
     build: ./services/lojas-service
+    environment:
+      DB_HOST: mysql
+      DB_NAME: lojas_db
+      DB_USER: lojas_user
+      DB_PASSWORD: ${LOJAS_DB_PASSWORD:?defina no .env}
     ports:
       - "127.0.0.1:${LOJAS_PORT:-8282}:8282"
-    restart: unless-stopped
 
   pagamentos-service:
+    <<: *service
     build: ./services/pagamentos-service
+    environment:
+      DB_HOST: mysql
+      DB_NAME: pagamentos_db
+      DB_USER: pagamentos_user
+      DB_PASSWORD: ${PAGAMENTOS_DB_PASSWORD:?defina no .env}
     ports:
       - "127.0.0.1:${PAGAMENTOS_PORT:-8181}:8181"
-    restart: unless-stopped
 
   pedidos-service:
+    <<: *service
     build: ./services/pedidos-service
+    environment:
+      DB_HOST: mysql
+      DB_NAME: pedidos_db
+      DB_USER: pedidos_user
+      DB_PASSWORD: ${PEDIDOS_DB_PASSWORD:?defina no .env}
     ports:
       - "127.0.0.1:${PEDIDOS_PORT:-8080}:8080"
-    restart: unless-stopped
+
+volumes:
+  mysql-data:
