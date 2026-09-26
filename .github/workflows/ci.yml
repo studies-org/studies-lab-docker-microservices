@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.6.9
+      - run: ruff check services scripts
+
+  e2e:
+    name: Compose + smoke test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gera .env com senhas aleatórias
+        run: |
+          cp .env.example .env
+          for v in MYSQL_ROOT_PASSWORD ITEMS_DB_PASSWORD LOJAS_DB_PASSWORD PAGAMENTOS_DB_PASSWORD PEDIDOS_DB_PASSWORD; do
+            sed -i "s/^$v=.*/$v=$(openssl rand -hex 16)/" .env
+          done
+
+      - name: Valida a compose
+        run: docker compose config --quiet
+
+      - name: Sobe a stack
+        run: docker compose up -d --build --wait --wait-timeout 180
+
+      - name: Smoke test (todas as rotas pelo painel)
+        run: python3 scripts/smoke_test.py http://localhost:8000
+
+      - name: Logs em caso de falha
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Derruba
+        if: always()
+        run: docker compose down -v
