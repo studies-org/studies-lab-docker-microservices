@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, render_template, request
 
 import db
+import servicos
 
 app = Flask(__name__)
 
@@ -84,15 +85,32 @@ def pedidos_route():
     pedido, erro = ler_pedido(request.get_json(silent=True) or {})
     if erro:
         return jsonify({'error': erro}), 400
+
+    # Preço sempre vem do items-service, nunca do cliente
+    try:
+        if pedido['loja_id'] is not None:
+            code, _ = servicos.chamar('GET', servicos.url('lojas', f"/lojas/{pedido['loja_id']}"))
+            if code == 404:
+                return jsonify({'error': f"Loja {pedido['loja_id']} não encontrada"}), 422
+        precos = {}
+        for produto_id in pedido['itens']:
+            code, body = servicos.chamar('GET', servicos.url('items', f'/itens/{produto_id}'))
+            if code == 404:
+                return jsonify({'error': f'Produto {produto_id} não encontrado no catálogo'}), 422
+            precos[produto_id] = body['item']['preco']
+    except servicos.Indisponivel as err:
+        return jsonify({'error': f'Serviço indisponível: {err}'}), 503
+
+    total = round(sum(precos[pid] * q for pid, q in pedido['itens'].items()), 2)
     with db.transaction() as cur:
         cur.execute(
-            "INSERT INTO pedidos (cliente_id, loja_id, forma_pagamento) VALUES (%s, %s, %s)",
-            (pedido['cliente_id'], pedido['loja_id'], pedido['forma_pagamento']),
+            "INSERT INTO pedidos (cliente_id, loja_id, forma_pagamento, total) VALUES (%s, %s, %s, %s)",
+            (pedido['cliente_id'], pedido['loja_id'], pedido['forma_pagamento'], total),
         )
         pedido_id = cur.lastrowid
         cur.executemany(
-            "INSERT INTO pedido_itens (pedido_id, produto_id, quantidade) VALUES (%s, %s, %s)",
-            [(pedido_id, pid, q) for pid, q in pedido['itens'].items()],
+            "INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unitario) VALUES (%s, %s, %s, %s)",
+            [(pedido_id, pid, q, precos[pid]) for pid, q in pedido['itens'].items()],
         )
     return jsonify(buscar(pedido_id)), 201
 
