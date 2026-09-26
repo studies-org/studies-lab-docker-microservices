@@ -59,6 +59,7 @@ services:
       DB_NAME: pagamentos_db
       DB_USER: pagamentos_user
       DB_PASSWORD: ${PAGAMENTOS_DB_PASSWORD:?defina no .env}
+      PEDIDOS_URL: http://pedidos-service:8080
     ports:
       - "127.0.0.1:${PAGAMENTOS_PORT:-8181}:8181"
 
