@@ -46,6 +46,8 @@ services:
       DB_NAME: lojas_db
       DB_USER: lojas_user
       DB_PASSWORD: ${LOJAS_DB_PASSWORD:?defina no .env}
+      ITEMS_URL: http://items-service:8383
+      PEDIDOS_URL: http://pedidos-service:8080
     ports:
       - "127.0.0.1:${LOJAS_PORT:-8282}:8282"
 
@@ -57,6 +59,7 @@ services:
       DB_NAME: pagamentos_db
       DB_USER: pagamentos_user
       DB_PASSWORD: ${PAGAMENTOS_DB_PASSWORD:?defina no .env}
+      PEDIDOS_URL: http://pedidos-service:8080
     ports:
       - "127.0.0.1:${PAGAMENTOS_PORT:-8181}:8181"
 
@@ -68,6 +71,8 @@ services:
       DB_NAME: pedidos_db
       DB_USER: pedidos_user
       DB_PASSWORD: ${PEDIDOS_DB_PASSWORD:?defina no .env}
+      ITEMS_URL: http://items-service:8383
+      LOJAS_URL: http://lojas-service:8282
     ports:
       - "127.0.0.1:${PEDIDOS_PORT:-8080}:8080"
 

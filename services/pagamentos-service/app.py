@@ -4,6 +4,7 @@ import uuid
 from flask import Flask, jsonify, render_template, request
 
 import db
+import servicos
 
 app = Flask(__name__)
 
@@ -91,6 +92,71 @@ def formas_pagamento_route():
     if request.method == 'POST':
         resposta["message"] = "Forma de pagamento cadastrada com sucesso"
     return jsonify(resposta), status_code
+
+
+def buscar_transacao(transacao_id):
+    row = db.query_one("SELECT * FROM transacoes WHERE id = %s", (transacao_id,))
+    if row:
+        row["detalhes"] = json.loads(row["detalhes"])
+    return row
+
+
+def marcar_pago(pedido_id):
+    servicos.chamar('PUT', servicos.url('pedidos', f'/pedidos/{pedido_id}/status'), {"status": "pago"})
+
+
+@app.route('/pagamentos', methods=['POST'])
+def pagar_pedido():
+    """Paga um pedido do pedidos-service. O valor vem do pedido, não do cliente."""
+    data = payload()
+    forma = (data.get('forma_pagamento') or '').strip()
+    try:
+        pedido_id = int(data.get('pedido_id'))
+    except (TypeError, ValueError):
+        return jsonify({"message": "Informe pedido_id"}), 400
+    if not db.query_one("SELECT id FROM formas_pagamento WHERE nome = %s", (forma,)):
+        return jsonify({"message": f"Forma de pagamento inválida: {forma or '(vazia)'}"}), 400
+    if forma not in FORMAS_PADRAO:
+        return jsonify({"message": f"A forma {forma} está cadastrada, mas não tem integração simulada"}), 422
+
+    try:
+        code, pedido = servicos.chamar('GET', servicos.url('pedidos', f'/pedidos/{pedido_id}'))
+        if code == 404:
+            return jsonify({"message": f"Pedido {pedido_id} não encontrado"}), 404
+        if pedido['status'] != 'em processamento':
+            return jsonify({"message": f"Pedido {pedido_id} está {pedido['status']}, não dá para pagar"}), 409
+        detalhes = simular(forma, data.get('cartao') or '')
+        transacao_id = registrar(forma, detalhes, pedido_id, pedido['total'])
+        if detalhes['status'] == 'succeeded':
+            marcar_pago(pedido_id)
+    except servicos.Indisponivel:
+        return jsonify({"message": "pedidos-service indisponível"}), 503
+    return jsonify({"message": "Pagamento registrado", "transacao": buscar_transacao(transacao_id)}), 201
+
+
+@app.route('/pagamentos/<int:transacao_id>')
+def ver_pagamento(transacao_id):
+    transacao = buscar_transacao(transacao_id)
+    if not transacao:
+        return jsonify({"message": "Transação não encontrada"}), 404
+    return jsonify({"transacao": transacao})
+
+
+@app.route('/pagamentos/<int:transacao_id>/confirmar', methods=['POST'])
+def confirmar_boleto(transacao_id):
+    """Simula a compensação do boleto: a transação fica paga e o pedido vira pago."""
+    transacao = buscar_transacao(transacao_id)
+    if not transacao:
+        return jsonify({"message": "Transação não encontrada"}), 404
+    if transacao['detalhes']['status'] != 'pending':
+        return jsonify({"message": "Só boletos pendentes podem ser confirmados"}), 409
+    db.execute("UPDATE transacoes SET detalhes = JSON_SET(detalhes, '$.status', 'succeeded') WHERE id = %s", (transacao_id,))
+    if transacao['pedido_id']:
+        try:
+            marcar_pago(transacao['pedido_id'])
+        except servicos.Indisponivel:
+            return jsonify({"message": "Boleto confirmado, mas o pedidos-service não respondeu"}), 503
+    return jsonify({"message": "Boleto confirmado", "transacao": buscar_transacao(transacao_id)})
 
 
 @app.route('/historico')

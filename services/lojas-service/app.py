@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request, render_template
 
 import db
+import servicos
 
 app = Flask(__name__)
 
@@ -88,6 +89,12 @@ def produtos_lojas_route():
         return jsonify({"message": "Estoque não pode ser negativo"}), 400
     if not buscar(loja_id):
         return jsonify({"message": f"Loja {loja_id} não encontrada"}), 404
+    try:
+        code, _ = servicos.chamar('GET', servicos.url('items', f'/itens/{produto_id}'))
+    except servicos.Indisponivel:
+        return jsonify({"message": "items-service indisponível"}), 503
+    if code == 404:
+        return jsonify({"message": f"Produto {produto_id} não existe no items-service"}), 404
     db.execute(
         "INSERT INTO produtos_lojas (loja_id, produto_id, estoque) VALUES (%s, %s, %s) "
         "ON DUPLICATE KEY UPDATE estoque = VALUES(estoque)",
@@ -105,7 +112,22 @@ def dashboard(loja_id):
     if not loja:
         return jsonify({"message": f"Loja {loja_id} não encontrada"}), 404
     estoque = db.query("SELECT produto_id, estoque FROM produtos_lojas WHERE loja_id = %s ORDER BY produto_id", (loja_id,))
-    return jsonify({"loja": loja, "vendas": [], "estoque": estoque})
+    avisos = []
+    try:
+        _, body = servicos.chamar('GET', servicos.url('items', '/itens'))
+        catalogo = {i['id']: i for i in body['itens']}
+        for linha in estoque:
+            item = catalogo.get(linha['produto_id'], {})
+            linha['nome'], linha['preco'] = item.get('nome'), item.get('preco')
+    except servicos.Indisponivel:
+        avisos.append("items-service indisponível: estoque sem nome e preço")
+    try:
+        _, vendas = servicos.chamar('GET', servicos.url('pedidos', f'/pedidos?loja_id={loja_id}'))
+    except servicos.Indisponivel:
+        vendas = []
+        avisos.append("pedidos-service indisponível: vendas não carregadas")
+    faturamento = round(sum(v['total'] or 0 for v in vendas if v['status'] in ('pago', 'enviado', 'entregue')), 2)
+    return jsonify({"loja": loja, "vendas": vendas, "estoque": estoque, "faturamento": faturamento, "avisos": avisos})
 
 
 @app.route('/historico')
