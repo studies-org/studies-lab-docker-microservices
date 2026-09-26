@@ -50,8 +50,13 @@ services:
       - "127.0.0.1:${LOJAS_PORT:-8282}:8282"
 
   pagamentos-service:
+    <<: *service
     build: ./services/pagamentos-service
-    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_NAME: pagamentos_db
+      DB_USER: pagamentos_user
+      DB_PASSWORD: ${PAGAMENTOS_DB_PASSWORD:?defina no .env}
     ports:
       - "127.0.0.1:${PAGAMENTOS_PORT:-8181}:8181"
 
