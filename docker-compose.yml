@@ -39,8 +39,13 @@ services:
       - "127.0.0.1:${ITEMS_PORT:-8383}:8383"
 
   lojas-service:
+    <<: *service
     build: ./services/lojas-service
-    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_NAME: lojas_db
+      DB_USER: lojas_user
+      DB_PASSWORD: ${LOJAS_DB_PASSWORD:?defina no .env}
     ports:
       - "127.0.0.1:${LOJAS_PORT:-8282}:8282"
 

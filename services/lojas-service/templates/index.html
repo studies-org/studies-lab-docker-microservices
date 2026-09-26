@@ -61,7 +61,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.message === "Loja cadastrada com sucesso") {
-                    const loja = data.lojas[data.lojas.length - 1];
+                    const loja = data.loja;
                     const lojaItem = document.createElement('div');
                     lojaItem.textContent = `ID: ${loja.id}, Nome: ${loja.nome}, Descrição: ${loja.descricao}, Endereço: ${loja.endereco}, Contato: ${loja.contato}`;
                     document.getElementById('lojas-list').appendChild(lojaItem);
