@@ -1,103 +1,125 @@
 from flask import Flask, jsonify, render_template, request
-from datetime import datetime
+
+import db
 
 app = Flask(__name__)
 
-# Simulated database
-pedidos = []
-clientes = {}
-produtos = {}
+STATUS = ["em processamento", "pago", "enviado", "entregue", "cancelado"]
 
-# Entidades
-class Pedido:
-    STATUS = ["em processamento", "enviado", "entregue"]
+db.init_schema([
+    """CREATE TABLE IF NOT EXISTS pedidos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        cliente_id INT NOT NULL,
+        loja_id INT NULL,
+        forma_pagamento VARCHAR(40) NOT NULL,
+        status VARCHAR(30) NOT NULL DEFAULT 'em processamento',
+        total DECIMAL(10, 2) NULL,
+        data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_pedidos_cliente (cliente_id),
+        INDEX idx_pedidos_loja (loja_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS pedido_itens (
+        pedido_id INT NOT NULL,
+        produto_id INT NOT NULL,
+        quantidade INT NOT NULL,
+        preco_unitario DECIMAL(10, 2) NULL,
+        PRIMARY KEY (pedido_id, produto_id),
+        CONSTRAINT fk_pedido_itens_pedido FOREIGN KEY (pedido_id) REFERENCES pedidos (id) ON DELETE CASCADE
+    )""",
+])
 
-    def __init__(self, id, cliente_id, itens, forma_pagamento):
-        self.id = id
-        self.cliente_id = int(cliente_id)  # Garantir que cliente_id seja um inteiro
-        self.itens = itens
-        self.forma_pagamento = forma_pagamento
-        self.status = "em processamento"
-        self.data_criacao = datetime.now()
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'cliente_id': self.cliente_id,
-            'itens': [item.to_dict() for item in self.itens],
-            'forma_pagamento': self.forma_pagamento,
-            'status': self.status,
-            'data_criacao': self.data_criacao.isoformat()
-        }
+def carregar(pedidos):
+    """Anexa os itens de cada pedido."""
+    for pedido in pedidos:
+        pedido['itens'] = db.query(
+            "SELECT produto_id, quantidade, preco_unitario FROM pedido_itens WHERE pedido_id = %s ORDER BY produto_id",
+            (pedido['id'],),
+        )
+    return pedidos
 
-class ItemPedido:
-    def __init__(self, produto_id, quantidade):
-        self.produto_id = produto_id
-        self.quantidade = quantidade
 
-    def to_dict(self):
-        return {
-            'produto_id': self.produto_id,
-            'quantidade': self.quantidade
-        }
+def buscar(pedido_id):
+    pedido = db.query_one("SELECT * FROM pedidos WHERE id = %s", (pedido_id,))
+    return carregar([pedido])[0] if pedido else None
+
+
+def ler_pedido(data):
+    """Valida o corpo do POST /pedidos. Devolve (dados, erro)."""
+    try:
+        itens = {}
+        for item in data['itens']:
+            produto_id, quantidade = int(item['produto_id']), int(item['quantidade'])
+            itens[produto_id] = itens.get(produto_id, 0) + quantidade
+        cliente_id = int(data['cliente_id'])
+        loja_id = int(data['loja_id']) if data.get('loja_id') not in (None, '') else None
+        forma_pagamento = str(data['forma_pagamento']).strip()
+    except (KeyError, TypeError, ValueError):
+        return None, 'Envie cliente_id, forma_pagamento e itens [{produto_id, quantidade}]'
+    if not itens or any(q <= 0 for q in itens.values()) or not forma_pagamento:
+        return None, 'O pedido precisa de ao menos um item com quantidade positiva'
+    return dict(cliente_id=cliente_id, loja_id=loja_id, forma_pagamento=forma_pagamento, itens=itens), None
+
 
 @app.route('/', methods=['GET'])
 def home():
     return render_template('index.html')
 
+
 @app.route('/status')
 def status():
-    return jsonify({"status": "ok"})
+    ok = db.healthy()
+    return jsonify({"status": "ok" if ok else "degradado", "database": "ok" if ok else "indisponível"}), 200 if ok else 503
 
-# Rotas para funcionalidades de pedidos
-@app.route('/pedidos', methods=['POST'])
-def criar_pedido():
-    data = request.get_json(silent=True) or {}
-    try:
-        itens = [ItemPedido(int(item['produto_id']), int(item['quantidade'])) for item in data['itens']]
-        cliente_id = int(data['cliente_id'])
-        forma_pagamento = data['forma_pagamento']
-    except (KeyError, TypeError, ValueError):
-        return jsonify({'error': 'Envie cliente_id, forma_pagamento e itens [{produto_id, quantidade}]'}), 400
-    if not itens or any(item.quantidade <= 0 for item in itens):
-        return jsonify({'error': 'O pedido precisa de ao menos um item com quantidade positiva'}), 400
-    pedido_id = len(pedidos) + 1
-    pedido = Pedido(pedido_id, cliente_id, itens, forma_pagamento)
-    pedidos.append(pedido)
-    print(f"Pedido criado: {pedido.to_dict()}")  # Log para depuração
-    return jsonify({'id': pedido_id}), 201
+
+@app.route('/pedidos', methods=['GET', 'POST'])
+def pedidos_route():
+    if request.method == 'GET':
+        if request.args.get('loja_id'):
+            rows = db.query("SELECT * FROM pedidos WHERE loja_id = %s ORDER BY id DESC", (request.args.get('loja_id'),))
+        else:
+            rows = db.query("SELECT * FROM pedidos ORDER BY id DESC")
+        return jsonify(carregar(rows))
+
+    pedido, erro = ler_pedido(request.get_json(silent=True) or {})
+    if erro:
+        return jsonify({'error': erro}), 400
+    with db.transaction() as cur:
+        cur.execute(
+            "INSERT INTO pedidos (cliente_id, loja_id, forma_pagamento) VALUES (%s, %s, %s)",
+            (pedido['cliente_id'], pedido['loja_id'], pedido['forma_pagamento']),
+        )
+        pedido_id = cur.lastrowid
+        cur.executemany(
+            "INSERT INTO pedido_itens (pedido_id, produto_id, quantidade) VALUES (%s, %s, %s)",
+            [(pedido_id, pid, q) for pid, q in pedido['itens'].items()],
+        )
+    return jsonify(buscar(pedido_id)), 201
+
 
 @app.route('/pedidos/<int:pedido_id>', methods=['GET'])
 def status_pedido(pedido_id):
-    pedido = next((p for p in pedidos if p.id == pedido_id), None)
+    pedido = buscar(pedido_id)
     if pedido:
-        return jsonify({'status': pedido.status})
+        return jsonify(pedido)
     return jsonify({'error': 'Pedido não encontrado'}), 404
+
 
 @app.route('/pedidos/<int:pedido_id>/status', methods=['PUT'])
 def atualizar_status_pedido(pedido_id):
-    data = request.get_json(silent=True) or {}
-    novo_status = data.get('status')
+    novo_status = (request.get_json(silent=True) or {}).get('status')
+    if novo_status not in STATUS:
+        return jsonify({'error': 'Status inválido', 'validos': STATUS}), 400
+    _, alterados = db.execute("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, pedido_id))
+    if not alterados and not buscar(pedido_id):
+        return jsonify({'error': 'Pedido não encontrado'}), 404
+    return jsonify({'id': pedido_id, 'status': novo_status})
 
-    if novo_status not in Pedido.STATUS:
-        return jsonify({'error': 'Status inválido'}), 400
-
-    pedido = next((p for p in pedidos if p.id == pedido_id), None)
-    if pedido:
-        pedido.status = novo_status
-        return jsonify({'status': pedido.status})
-    return jsonify({'error': 'Pedido não encontrado'}), 404
 
 @app.route('/clientes/<int:cliente_id>/pedidos', methods=['GET'])
 def historico_pedidos(cliente_id):
-    cliente_id = int(cliente_id)  # Garantir que cliente_id seja um inteiro
-    historico = [p.to_dict() for p in pedidos if p.cliente_id == cliente_id]
-    print(f"Histórico de pedidos para cliente {cliente_id}: {historico}")  # Log para depuração
-    return jsonify(historico)
+    return jsonify(carregar(db.query("SELECT * FROM pedidos WHERE cliente_id = %s ORDER BY id DESC", (cliente_id,))))
 
-@app.route('/test', methods=['GET'])
-def test():
-    return jsonify([p.to_dict() for p in pedidos])
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)

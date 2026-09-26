@@ -61,8 +61,13 @@ services:
       - "127.0.0.1:${PAGAMENTOS_PORT:-8181}:8181"
 
   pedidos-service:
+    <<: *service
     build: ./services/pedidos-service
-    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_NAME: pedidos_db
+      DB_USER: pedidos_user
+      DB_PASSWORD: ${PEDIDOS_DB_PASSWORD:?defina no .env}
     ports:
       - "127.0.0.1:${PEDIDOS_PORT:-8080}:8080"
 
